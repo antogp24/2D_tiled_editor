@@ -1,0 +1,144 @@
+serialize_save :: proc(save_file_name: string) -> (bytes_saved: int) 
+{
+    buffer := byte_buffer_new()
+    defer free(buffer.data)
+
+    // Writing the amount of spritesheets.
+    spritesheets_count := len(editor.spritesheets)
+    byte_buffer_write(&buffer, int, &spritesheets_count)
+
+    // Writing the names.
+    for sheet in 0..<spritesheets_count {
+        name_len := len(editor.spritesheets[sheet].name)
+        byte_buffer_write(&buffer, int, &name_len)
+
+        for i in 0..<name_len {
+            character := editor.spritesheets[sheet].name[i]
+            byte_buffer_write(&buffer, u8, &character)
+        }
+    }
+
+    // Writing the amount of tile layers.
+    layers_count := len(editor.tile_layers)
+    byte_buffer_write(&buffer, int, &layers_count)
+
+    for layer in 0..<layers_count {
+        // Writing the amount of tiles.
+        tiles_count := len(editor.tile_layers[layer])
+        byte_buffer_write(&buffer, int, &tiles_count)
+
+        for key, value in editor.tile_layers[layer] {
+            pos, info := key, value
+            flags := flags_to_int(info.flags)
+            // Writing the fields of the tile.
+            byte_buffer_write(&buffer, int, &info.i)
+            byte_buffer_write(&buffer, int, &info.j)
+            byte_buffer_write(&buffer, int, &info.texture_index)
+            byte_buffer_write(&buffer, int, &pos.x)
+            byte_buffer_write(&buffer, int, &pos.y)
+            byte_buffer_write(&buffer, int, &flags)
+        }
+    }
+
+    byte_buffer_write_to_file(&buffer, save_file_name)
+
+    return buffer.size
+}
+
+serialize_load :: proc(save_file_name: string) -> (load_result: LoadResult, bytes_loaded: int)
+{
+    buffer := byte_buffer_new(false)
+
+    read_success := byte_buffer_read_from_file(&buffer, save_file_name)
+    defer free(buffer.data)
+
+    // Create the file in case it doesn't exist.
+    if !read_success {
+        file, _ := os.open(save_file_name, os.O_CREATE)
+        os.close(file)
+        return .CREATED_SAVE_FILE, 0
+    }
+
+    // Check that the file isn't empty.
+    if buffer.size == 0 {
+        return .SKIPPED_SAVE_FILE, 0
+    }
+
+    get_texture_index :: proc(name: string) -> int
+    {
+        for &sheet, i in editor.spritesheets {
+            if strings.compare(name, sheet.name) == 0 {
+                return i
+            }
+        }
+        return -1
+    }
+
+    // Reading the amount of spritesheets.
+    spritesheets_count: int
+    byte_buffer_read(&buffer, int, &spritesheets_count)
+
+    name_mapping := make([]string, spritesheets_count)
+    defer delete(name_mapping)
+    builders := make([]strings.Builder, spritesheets_count)
+    defer {
+        for i in 0..<len(builders) do strings.builder_destroy(&builders[i])
+        delete(builders)
+    }
+
+    // Reading the names.
+    for sheet in 0..<spritesheets_count {
+        name_len: int
+        byte_buffer_read(&buffer, int, &name_len)
+
+        builders[sheet] = strings.builder_make(len=0, cap=name_len)
+        for i in 0..<name_len {
+            character: u8
+            byte_buffer_read(&buffer, u8, &character)
+            strings.write_byte(&builders[sheet], character)
+        }
+        name_mapping[sheet] = strings.to_string(builders[sheet])
+    }
+
+    // Reading the amount of tile layers.
+    layers_count: int
+    byte_buffer_read(&buffer, int, &layers_count)
+    reserve(&editor.tile_layers, layers_count)
+
+    for layer in 0..<layers_count {
+        // Creating an empty layer each iteration.
+        append(&editor.tile_layers, TileLayer{})
+
+        // Reading the amount of tiles.
+        tiles_count: int
+        byte_buffer_read(&buffer, int, &tiles_count)
+        reserve(&editor.tile_layers[layer], tiles_count)
+
+        for i in 0..<tiles_count {
+            info: TileInfo; pos: [2]int; flags: int
+            // Reading the fields of the tile.
+            byte_buffer_read(&buffer, int, &info.i)
+            byte_buffer_read(&buffer, int, &info.j)
+            byte_buffer_read(&buffer, int, &info.texture_index)
+            byte_buffer_read(&buffer, int, &pos.x)
+            byte_buffer_read(&buffer, int, &pos.y)
+            byte_buffer_read(&buffer, int, &flags)
+
+            info.flags = int_to_flags(flags)
+            info.texture_index = get_texture_index(name_mapping[info.texture_index])
+
+            when ODIN_DEBUG {
+                if info.texture_index == -1 {
+                    fmt.printf("[EDITOR:INFO:%s] Couldn't find tile at (%v, %v)", name_mapping[info.texture_index], pos.x, pos.y)
+                }
+            }
+            // Default to 0 when not found.
+            if info.texture_index == -1 do info.texture_index = 0
+
+            editor.tile_layers[layer][pos] = info
+            update_level_boundaries(&editor.x_boundary, &editor.y_boundary, pos)
+        }
+    }
+
+    return .SUCCESS, buffer.size
+}

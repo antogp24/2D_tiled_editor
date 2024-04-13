@@ -82,17 +82,17 @@ SaveFileFormat :: struct {
 serialize_save :: proc(save_file_name: string) -> (bytes_saved: int)
 {
     format: SaveFileFormat
-    _, format.spritesheet_names = soa_unzip(editor.spritesheets[:])
+    _, format.spritesheet_names, _ = soa_unzip(editor.spritesheets[:])
 
     for &tile_layer, layer_index in editor.tile_layers {
-        if len(tile_layer) != 0 {
-            builders := make_slice([]strings.Builder, len(tile_layer))
+        if len(tile_layer.tiles) != 0 {
+            builders := make_slice([]strings.Builder, len(tile_layer.tiles))
             defer delete(builders)
 
             append(&format.tile_layers, SaveTileLayer{})
 
             builder_index: int
-            for pos, info in tile_layer {
+            for pos, info in tile_layer.tiles {
                 strings.write_int(&builders[builder_index], pos.x)
                 strings.write_byte(&builders[builder_index], ';')
                 strings.write_int(&builders[builder_index], pos.y)
@@ -163,7 +163,7 @@ serialize_load :: proc(save_file_name: string) -> (load_result: LoadResult, byte
 
     for &tile_layer, index in format.tile_layers {
         if len(tile_layer) != 0 {
-            append(&editor.tile_layers, TileLayer{})
+            append(&editor.tile_layers, TileLayer{visible=true})
 
             for key, value in tile_layer {
                 pos_string, info := key, value
@@ -178,7 +178,7 @@ serialize_load :: proc(save_file_name: string) -> (load_result: LoadResult, byte
                 // Default to 0 when not found.
                 if info.texture_index == -1 do info.texture_index = 0
 
-                editor.tile_layers[index][pos] = info
+                editor.tile_layers[index].tiles[pos] = info
                 update_level_boundaries(&editor.x_boundary, &editor.y_boundary, pos)
             }
         }

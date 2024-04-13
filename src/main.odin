@@ -26,8 +26,13 @@ SCALE :: 10
 
 State :: struct {
     cursor_icon: rl.Texture2D,
+    plus_icon, minus_icon: rl.Texture2D,
+    eye_opened, eye_closed: rl.Texture2D,
+
     check_icon: rl.Texture2D,
     tileflags_checkboxes: [TileFlag.Count]CheckBox,
+
+    autotile: AutoTileInterface,
 
     flags: TileFlags,
     selected_tile: [2]int,
@@ -106,6 +111,18 @@ main :: proc()
     editor.cursor_icon = bake_texture("icons/cursor.png")
     defer rl.UnloadTexture(editor.cursor_icon)
 
+    editor.plus_icon = bake_texture("icons/plus.png")
+    defer rl.UnloadTexture(editor.plus_icon)
+
+    editor.minus_icon = bake_texture("icons/minus.png")
+    defer rl.UnloadTexture(editor.minus_icon)
+
+    editor.eye_opened = bake_texture("icons/eye_opened.png")
+    defer rl.UnloadTexture(editor.eye_opened)
+
+    editor.eye_closed = bake_texture("icons/eye_closed.png")
+    defer rl.UnloadTexture(editor.eye_closed)
+
     editor.check_icon = bake_texture("icons/check.png")
     defer rl.UnloadTexture(editor.check_icon)
 
@@ -114,6 +131,8 @@ main :: proc()
 
     level_loader_init(&editor.level_loader)
     defer level_loader_delete(&editor.level_loader)
+
+    editor.autotile.checkbox = checkbox_new("Auto Tile")
 
     editor.save_textbox = textbox_new(fontsize=2, text="level_0", N=15, extra_w=10, extra_h=10)
     editor.save_textbox.x = 10
@@ -125,14 +144,17 @@ main :: proc()
     editor.spritesheets = spritesheets_load("pngs")
     defer spritesheets_unload(editor.spritesheets)
 
-    editor.cam.offset = {editor.split_x + (screen.w - editor.split_x)/2, TOOLBAR_H + (screen.h - TOOLBAR_H)/2}
+    editor.cam.offset = {
+        editor.split_x + (screen.w - editor.split_x)/2,
+        TOOLBAR_H + LAYERS_UI_H + (screen.h - TOOLBAR_H)/2
+    }
     editor.cam.zoom = 1.0
 
     editor.current_tool = Tool.Brush
     editor.flags = {.Collideable}
     init_tileflag_checkboxes()
 
-    if len(editor.tile_layers) == 0 do append(&editor.tile_layers, TileLayer{})
+    if len(editor.tile_layers) == 0 do append(&editor.tile_layers, TileLayer{visible=true})
 
     // Game loop.
     // -------------------------------------------------------------------------------- //

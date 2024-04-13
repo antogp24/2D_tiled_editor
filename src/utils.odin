@@ -2,6 +2,7 @@ package editor
 
 import "core:fmt"
 import "core:strings"
+import "core:math"
 import "core:slice"
 import "core:os"
 import rl "vendor:raylib"
@@ -14,6 +15,12 @@ color_from_hex :: #force_inline proc($hex: int) -> rl.Color
         u8((hex >>  8) & 0xFF),
         u8((hex >>  0) & 0xFF),
     }
+}
+
+len_int :: proc(number: int) -> int
+{
+    if number == 0 do return 1
+    return int(math.log10_f32(cast(f32)number)) + 1
 }
 
 @(require_results)
@@ -95,7 +102,7 @@ load_data :: proc()
     strings.write_string(&builder, name)
 
     serialize_load_and_log(strings.to_string(builder))
-    if len(editor.tile_layers) == 0 do append(&editor.tile_layers, TileLayer{})
+    if len(editor.tile_layers) == 0 do append(&editor.tile_layers, TileLayer{visible=true})
 
 }
 

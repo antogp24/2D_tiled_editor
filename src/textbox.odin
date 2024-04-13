@@ -149,7 +149,8 @@ draw_textbox :: proc(using t: ^TextBox)
         editor.font.h * fontsize - fontsize * 2,
     }
 
-    rl.DrawRectangleRounded(rect, 0.5, 20, PALETTE06)
+    rl.DrawRectangleRec(rect, PALETTE06)
+    rl.DrawRectangleLinesEx(rect, 1, PALETTE00)
     font_image_draw(&editor.font, fontsize, textbox_string(t, text_len), text_x, text_y, PALETTE03)
     if active do rl.DrawRectangleRec(cursor_rect, rl.ColorAlpha(PALETTE00, math.cos(math.PI*time.now)*0.35 + 0.65))
 }

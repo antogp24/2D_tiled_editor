@@ -10,6 +10,7 @@ import rl "vendor:raylib"
 SpriteSheet :: struct {
     texture: rl.Texture2D,
     name: string,
+    autotile: [dynamic]AutoTileInfo,
 }
 
 SpriteSheets :: #soa[dynamic]SpriteSheet
@@ -20,7 +21,7 @@ spritesheets_load :: proc(path: string) -> (spritesheets: SpriteSheets)
     assert(err == os.ERROR_NONE)
     defer delete(dir_contents)
 
-    i, least_wide: i32
+    widest: i32
 
     for &listing in dir_contents {
         if !listing.is_dir && strings.compare(filepath.long_ext(listing.name), ".png") == 0 {
@@ -30,18 +31,17 @@ spritesheets_load :: proc(path: string) -> (spritesheets: SpriteSheets)
 
             spritesheet := SpriteSheet {
                 rl.LoadTexture(path_null_terminated), 
-                strings.clone(listing.name)
+                strings.clone(listing.name),
+                {},
             }
             append_soa(&spritesheets, spritesheet)
 
             using spritesheet
-            if i == 0 do least_wide = texture.width
-            if least_wide > texture.width do least_wide = texture.width
-            i += 1
+            if widest < texture.width do widest = texture.width
         }
     }
-    editor.min_split_x = f32(least_wide * SCALE) + SPLIT_THICK/2
-    editor.split_x = f32(spritesheets[editor.current_spritesheet].texture.width) * SCALE + SPLIT_THICK/2
+    editor.min_split_x = f32(widest * SCALE) + SPLIT_THICK/2
+    editor.split_x = editor.min_split_x
 
     return spritesheets
 }

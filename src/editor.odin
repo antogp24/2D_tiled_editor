@@ -1,5 +1,6 @@
 package editor
 
+import "core:fmt"
 import "core:math"
 import rl "vendor:raylib"
 
@@ -19,7 +20,7 @@ editor_update :: proc()
         padding :: 10
         tr := get_tile_selector_rect()
         checkbox.x = tr.x + tr.width/2 - (checkbox.width + 10 + cast(f32)len(checkbox.text)*checkbox.scale*editor.font.w)/2
-        checkbox.y = screen.h - PROPERTIES_H + f32(index) * (checkbox.height + padding) + 10
+        checkbox.y = screen.h - PROPERTIES_H + f32(index) * (checkbox.height + padding) + 22
 
         updated := checkbox_update(&checkbox)
 
@@ -29,6 +30,16 @@ editor_update :: proc()
             editor.flags -= {TileFlag(index)}
         }
     }
+
+    // Interacting with the autotile interface.
+    if editor.current_tool == Tool.Rectangle {
+        container := get_tile_selector_rect()
+        whole_thing_w := editor.autotile.checkbox.width + cast(f32)len(editor.autotile.checkbox.text) * editor.font.w * editor.autotile.checkbox.scale + 10
+        editor.autotile.checkbox.x = container.x + container.width/2 - whole_thing_w/2
+        editor.autotile.checkbox.y = container.y + container.height + 10
+        updated := checkbox_update(&editor.autotile.checkbox)
+    }
+    autotile_ui_update()
 
     // Using the mouse to move the split.
     if is_mouse_on_split() && rl.IsMouseButtonPressed(.LEFT) {
@@ -44,12 +55,8 @@ editor_update :: proc()
     }
 
     // Selecting the active tile with the mouse.
-    if is_mouse_on_tile_selector() && rl.IsMouseButtonDown(.LEFT)
-    {
-        rect := get_tile_selector_rect()
-        x, y := mouse.x - rect.x, mouse.y - rect.y
-        editor.selected_tile.x = int(x / (editor.tile_w * SCALE))
-        editor.selected_tile.y = int(y / (editor.tile_h * SCALE))
+    if is_mouse_on_tile_selector() && rl.IsMouseButtonDown(.LEFT) {
+        editor.selected_tile = get_tile_selector_mouse_tile()
     }
     if editor.selected_tile.x > int(editor.split_x / (editor.tile_w * SCALE)) - 1 {
         editor.selected_tile.x = int(editor.split_x / (editor.tile_w * SCALE))
@@ -65,7 +72,10 @@ editor_update :: proc()
         editor.cam.zoom += time.delta * mouse.wheel * 1
         editor.cam.zoom = clamp(editor.cam.zoom, 0.1, 1.0)
     }
-    editor.cam.offset = {editor.split_x + (screen.w - editor.split_x)/2, TOOLBAR_H + (screen.h - TOOLBAR_H)/2}
+    editor.cam.offset = {
+        editor.split_x + (screen.w - editor.split_x)/2,
+        TOOLBAR_H + LAYERS_UI_H + (screen.h - TOOLBAR_H)/2
+    }
 
     // Interacting with tools.
     tools_update()
@@ -74,12 +84,12 @@ editor_update :: proc()
     if rl.IsKeyDown(.LEFT_SHIFT) && rl.IsKeyPressed(.LEFT) {
         editor.current_spritesheet -= 1
         editor.current_spritesheet %%= len(editor.spritesheets)
-        editor.split_x = f32(editor.spritesheets[editor.current_spritesheet].texture.width * SCALE) + SPLIT_THICK/2
+        editor.selected_tile = {0, 0}
     }
     if rl.IsKeyDown(.LEFT_SHIFT) && rl.IsKeyPressed(.RIGHT) {
         editor.current_spritesheet += 1
         editor.current_spritesheet %%= len(editor.spritesheets)
-        editor.split_x = f32(editor.spritesheets[editor.current_spritesheet].texture.width * SCALE) + SPLIT_THICK/2
+        editor.selected_tile = {0, 0}
     }
 
     // Changing the selected tile with the mouse.
@@ -105,8 +115,10 @@ editor_draw :: proc(tool_icons: []rl.Texture2D)
 {
     // Drawing all the tiles in the editor.
     for &layer in editor.tile_layers {
-        for pos, info in layer {
-            draw_tile(editor.spritesheets, info, f32(pos.x) * editor.tile_w * SCALE, f32(pos.y) * editor.tile_h * SCALE)
+        if layer.visible {
+            for pos, info in layer.tiles {
+                draw_tile(editor.spritesheets, info, f32(pos.x) * editor.tile_w * SCALE, f32(pos.y) * editor.tile_h * SCALE)
+            }
         }
     }
 
@@ -128,12 +140,16 @@ editor_draw_HUD :: proc(tool_icons: []rl.Texture2D)
     // Drawing the toolbar.
     draw_toolbar(tool_icons)
 
+    // Drawing the layers user interface.
+    layers_ui_draw()
+
     // Drawing rectangle to prevent seeing stuff from the editor.
     rl.DrawRectangleRec({0, TOOLBAR_H, editor.split_x, screen.h - TOOLBAR_H}, PALETTE01)
     draw_tile_selector()
     
     // Drawing the split line.
     rl.DrawLineEx({editor.split_x, TOOLBAR_H}, {editor.split_x, screen.h}, SPLIT_THICK, PALETTE04)
+    rl.DrawRectangleLinesEx({editor.split_x - SPLIT_THICK/2, TOOLBAR_H-1, SPLIT_THICK, screen.h - TOOLBAR_H + 1}, 1, PALETTE00)
 
     // Drawing the current grid position of the cursor.
     draw_mouse_grid_pos()

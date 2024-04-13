@@ -41,12 +41,12 @@ tools: ToolState
 paste_from_temp_layer :: proc(l: ^TileLayer)
 {
     offset := tools.move.offset.end - tools.move.offset.start
-    for pos, info in tools.temp_layer {
+    for pos, info in tools.temp_layer.tiles {
         new_pos := pos + offset
-        if pos in tools.temp_layer do l^[new_pos] = tools.temp_layer[pos]
+        if pos in tools.temp_layer.tiles do l.tiles[new_pos] = tools.temp_layer.tiles[pos]
         update_level_boundaries(&editor.x_boundary, &editor.y_boundary, new_pos)
     }
-    clear_map(&tools.temp_layer)
+    clear_map(&tools.temp_layer.tiles)
 }
 
 
@@ -92,10 +92,11 @@ tools_update :: proc()
         case Tool.Picker: {
             if rl.IsMouseButtonPressed(.LEFT) {
                 pos := get_mouse_tile_pos()
-                if pos in editor.tile_layers[editor.current_layer] {
-                    info := editor.tile_layers[editor.current_layer][pos]
-                    editor.selected_tile.x = info.i
-                    editor.selected_tile.y = info.j
+                if pos in editor.tile_layers[editor.current_layer].tiles {
+                    info := editor.tile_layers[editor.current_layer].tiles[pos]
+                    editor.selected_tile = {info.i, info.j}
+                    editor.current_spritesheet = info.texture_index
+                    editor.flags = int_to_flags(info.flags)
                     editor.current_tool = Tool.Brush
                 }
             }
@@ -153,14 +154,14 @@ tools_update :: proc()
             // Copying the selection in the editor.
             if active && rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.C) {
                 offset.start = selection.start
-                clear_map(&layer)
+                clear_map(&layer.tiles)
                 layer_copy(&editor.tile_layers[editor.current_layer], &layer, selection)
             }
 
             // Cutting the selection in the editor.
             if active && rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.X) {
                 offset.start = selection.start
-                clear_map(&layer)
+                clear_map(&layer.tiles)
                 layer_cut(&editor.tile_layers[editor.current_layer], &layer, selection)
             }
 
@@ -242,15 +243,6 @@ tools_draw :: proc()
         else if erasing do draw_erase_rectangle_tiles_on_mouse()
     }
 
-    selection_draw :: proc(selection: TileSelection)
-    {
-        selection := selection
-        swap_selection_boundaries_if_needed(&selection)
-        rect := get_selection_rect(selection)
-        rl.DrawRectangleRec(rect, rl.ColorAlpha(PALETTE05, 0.4))
-        rl.DrawRectangleLinesEx(rect, 2/editor.cam.zoom, PALETTE07)
-    }
-
     // Drawing the copy paste tool.
     if tools.copy.active {
         selection_draw(tools.copy.selection)
@@ -259,7 +251,7 @@ tools_draw :: proc()
     // Drawing the move tool.
     if tools.move.active {
         offset := tools.move.offset.end - tools.move.offset.start
-        for pos, info in tools.temp_layer {
+        for pos, info in tools.temp_layer.tiles {
             v := linalg.array_cast(pos + offset, f32) * {editor.tile_w, editor.tile_h} * SCALE
             draw_tile(editor.spritesheets, info, v.x, v.y, 0.8)
         }

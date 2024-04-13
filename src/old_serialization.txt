@@ -47,7 +47,7 @@ serialize_save :: proc(save_file_name: string) -> (bytes_saved: int)
 
 serialize_load :: proc(save_file_name: string) -> (load_result: LoadResult, bytes_loaded: int)
 {
-    buffer := byte_buffer_new(false)
+    buffer := byte_buffer_new(init_data=false)
 
     read_success := byte_buffer_read_from_file(&buffer, save_file_name)
     defer free(buffer.data)
@@ -107,7 +107,7 @@ serialize_load :: proc(save_file_name: string) -> (load_result: LoadResult, byte
 
     for layer in 0..<layers_count {
         // Creating an empty layer each iteration.
-        append(&editor.tile_layers, TileLayer{})
+        append(&editor.tile_layers, TileLayer{visible=true})
 
         // Reading the amount of tiles.
         tiles_count: int

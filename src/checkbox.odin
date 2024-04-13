@@ -10,15 +10,26 @@ CheckBox :: struct {
     checked: bool,
 }
 
+// -------------------------------------------------------------------------------- //
+
+checkbox_new :: proc(text: string, scale: f32 = 2, checked := false) -> (c: CheckBox)
+{
+    c.text = text
+    c.scale = scale
+    c.checked = checked
+    c.width = cast(f32)editor.check_icon.width * scale
+    c.height = cast(f32)editor.check_icon.height * scale
+    return
+}
+
+// -------------------------------------------------------------------------------- //
+
 init_tileflag_checkboxes :: proc()
 {
     for &checkbox, index in editor.tileflags_checkboxes {
         flag_name := reflect.enum_string(TileFlag(index))
-        checkbox.text = flag_name
-        checkbox.scale = 2
-        checkbox.width = cast(f32)editor.check_icon.width * checkbox.scale
-        checkbox.height = cast(f32)editor.check_icon.height * checkbox.scale
-        checkbox.checked = TileFlag(index) in editor.flags
+        is_checked := TileFlag(index) in editor.flags
+        checkbox = checkbox_new(flag_name, checked=is_checked)
     }
 }
 
